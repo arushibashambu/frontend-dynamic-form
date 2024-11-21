@@ -1,0 +1,11 @@
+/* Default light mode styles */
+body {
+  background-color: white;
+  color: black;
+}
+
+/* Dark mode styles */
+body.bg-gray-800 {
+  background-color: #1a202c;
+  color: white;
+}
