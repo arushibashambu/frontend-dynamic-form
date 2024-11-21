@@ -2,142 +2,154 @@ import React, { useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { Field, FormSchema } from '../types/formSchema';
 
-interface FormGeneratorProps {
+interface FormBuilderProps {
   schema: FormSchema;
 }
 
-const FormGenerator: React.FC<FormGeneratorProps> = ({ schema }) => {
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const { control, handleSubmit, formState: { errors }, setValue } = useForm();
-  const onSubmit = (data: any) => {
-    console.log(data);
+const FormBuilder: React.FC<FormBuilderProps> = ({ schema }) => {
+  const [isDarkTheme, setIsDarkTheme] = useState(false);
+
+  const { control, handleSubmit, formState: { errors }, reset } = useForm();
+
+  // Toggle between light and dark themes
+  const toggleTheme = () => setIsDarkTheme(!isDarkTheme);
+
+  // Handle form submission
+  const handleFormSubmit = (formData: any) => {
+    console.log(formData);
     alert('Form submitted successfully!');
-    downloadJson(data);  // Optionally, download the data as JSON when form is submitted
+    downloadSubmissionAsJson(formData); // Download form data as JSON
+    reset(); // Reset the form after submission
   };
 
-  // Function to toggle dark mode
-  const toggleDarkMode = () => setIsDarkMode(!isDarkMode);
-
-  // Function to copy form JSON to clipboard
-  const copyFormJson = () => {
-    const jsonString = JSON.stringify(schema, null, 2);
-    navigator.clipboard.writeText(jsonString)
-      .then(() => alert('Form JSON copied to clipboard!'))
-      .catch((err) => console.error('Failed to copy:', err));
+  // Copy the schema JSON to clipboard
+  const copySchemaToClipboard = () => {
+    navigator.clipboard.writeText(JSON.stringify(schema, null, 2))
+      .then(() => alert('Form schema copied to clipboard!'))
+      .catch((error) => console.error('Failed to copy schema:', error));
   };
 
-  // Function to download form submission as JSON
-  const downloadJson = (data: any) => {
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'form_submission.json';
-    link.click();
+  // Download form submission data as JSON
+  const downloadSubmissionAsJson = (formData: any) => {
+    const dataBlob = new Blob([JSON.stringify(formData, null, 2)], { type: 'application/json' });
+    const downloadLink = document.createElement('a');
+    downloadLink.href = URL.createObjectURL(dataBlob);
+    downloadLink.download = 'form_submission.json';
+    downloadLink.click();
+  };
+
+  // Render individual form fields
+  const renderFormField = (fieldConfig: Field) => {
+    switch (fieldConfig.type) {
+      case 'text':
+      case 'email':
+      case 'textarea':
+        return (
+          <Controller
+            name={fieldConfig.id}
+            control={control}
+            rules={{
+              required: fieldConfig.required,
+              pattern: fieldConfig.validation?.pattern ? new RegExp(fieldConfig.validation.pattern) : undefined,
+            }}
+            render={({ field: inputProps }) => (
+              <input
+                {...inputProps}
+                id={fieldConfig.id}
+                placeholder={fieldConfig.placeholder}
+                type={fieldConfig.type}
+                className={block w-full p-2 border rounded-md ${isDarkTheme ? 'bg-gray-700 text-white' : 'bg-white text-black'}}
+              />
+            )}
+          />
+        );
+      case 'select':
+        return (
+          <Controller
+            name={fieldConfig.id}
+            control={control}
+            rules={{ required: fieldConfig.required }}
+            render={({ field: selectProps }) => (
+              <select
+                {...selectProps}
+                id={fieldConfig.id}
+                className={block w-full p-2 border rounded-md ${isDarkTheme ? 'bg-gray-700 text-white' : 'bg-white text-black'}}
+              >
+                <option value="">Select an option</option>
+                {fieldConfig.options?.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            )}
+          />
+        );
+      case 'radio':
+        return fieldConfig.options?.map((option) => (
+          <div key={option.value} className="flex items-center space-x-2">
+            <Controller
+              name={fieldConfig.id}
+              control={control}
+              rules={{ required: fieldConfig.required }}
+              render={({ field: radioProps }) => (
+                <input
+                  {...radioProps}
+                  id={${fieldConfig.id}-${option.value}}
+                  type="radio"
+                  value={option.value}
+                  className="mr-2"
+                />
+              )}
+            />
+            <label htmlFor={${fieldConfig.id}-${option.value}}>{option.label}</label>
+          </div>
+        ));
+      default:
+        return null;
+    }
   };
 
   return (
-    <div className={`w-full p-4 ${isDarkMode ? 'bg-gray-800 text-white' : 'bg-gray-50 text-black'}`}>
+    <div className={w-full p-6 rounded-md shadow-md ${isDarkTheme ? 'bg-gray-800 text-white' : 'bg-gray-50 text-black'}}>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-semibold">{schema.formTitle}</h2>
+        <button
+          onClick={toggleTheme}
+          className="px-4 py-2 bg-gray-500 text-white rounded-md"
+        >
+          {isDarkTheme ? 'Light Theme' : 'Dark Theme'}
+        </button>
+      </div>
+      <p className="mb-6">{schema.formDescription}</p>
+
       <button
-        onClick={toggleDarkMode}
-        className="absolute top-4 right-4 px-4 py-2 bg-gray-500 text-white rounded-md"
-      >
-        Toggle Dark Mode
-      </button>
-      <h2 className="text-xl font-semibold">{schema.formTitle}</h2>
-      <p className="mb-4">{schema.formDescription}</p>
-      
-      <button
-        onClick={copyFormJson}
+        onClick={copySchemaToClipboard}
         className="mb-4 px-4 py-2 bg-blue-500 text-white rounded-md"
       >
-        Copy Form JSON
+        Copy Schema JSON
       </button>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        {schema.fields.map((field: Field) => {
-          return (
-            <div key={field.id} className="space-y-2">
-              <label htmlFor={field.id} className="block text-sm font-medium">{field.label}</label>
-              <div className="flex justify-between items-center">
-                <div className="w-3/4">
-                  {field.type === 'text' || field.type === 'email' || field.type === 'textarea' ? (
-                    <Controller
-                      name={field.id}
-                      control={control}
-                      rules={{
-                        required: field.required,
-                        pattern: field.validation?.pattern ? new RegExp(field.validation.pattern) : undefined,
-                      }}
-                      render={({ field: controllerField }) => (
-                        <input
-                          {...controllerField}
-                          type={field.type}
-                          id={field.id}
-                          placeholder={field.placeholder}
-                          className="block w-full p-2 border border-gray-300 rounded-md"
-                        />
-                      )}
-                    />
-                  ) : field.type === 'select' ? (
-                    <Controller
-                      name={field.id}
-                      control={control}
-                      rules={{ required: field.required }}
-                      render={({ field: controllerField }) => (
-                        <select
-                          {...controllerField}
-                          className={`block w-full p-2 border border-gray-300 rounded-md ${isDarkMode ? 'bg-gray-700 text-white' : 'bg-white text-black'}`}
-                        >
-                          {field.options?.map((option: { label: string, value: string }) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                    />
-                  ) : field.type === 'radio' ? (
-                    field.options?.map((option: { label: string, value: string }) => (
-                      <div key={option.value} className="flex items-center">
-                        <Controller
-                          name={field.id}
-                          control={control}
-                          rules={{ required: field.required }}
-                          render={({ field: controllerField }) => (
-                            <input
-                              {...controllerField}
-                              type="radio"
-                              id={option.value}
-                              value={option.value}
-                              className="mr-2"
-                            />
-                          )}
-                        />
-                        <label htmlFor={option.value} className="text-sm">{option.label}</label>
-                      </div>
-                    ))
-                  ) : null}
-                </div>
-                {/* Validation preview */}
-                <div className="w-1/4">
-                  <div className="text-sm">
-                    {field.required && <div><strong>Required</strong></div>}
-                    {field.validation?.pattern && <div><strong>Pattern: </strong>{field.validation.pattern}</div>}
-                  </div>
-                </div>
-              </div>
-              {errors[field.id] && (
-                <span className="text-red-500 text-xs">
-                  {field.validation?.message || 'This field is required'}
-                </span>
-              )}
-            </div>
-          );
-        })}
-        <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded-md">Submit</button>
+      <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
+        {schema.fields.map((field) => (
+          <div key={field.id} className="space-y-2">
+            <label htmlFor={field.id} className="block text-sm font-medium">
+              {field.label} {field.required && <span className="text-red-500">*</span>}
+            </label>
+            {renderFormField(field)}
+            {errors[field.id] && (
+              <span className="text-red-500 text-sm">
+                {field.validation?.message || 'This field is required'}
+              </span>
+            )}
+          </div>
+        ))}
+        <button type="submit" className="px-4 py-2 bg-green-500 text-white rounded-md">
+          Submit
+        </button>
       </form>
     </div>
   );
 };
 
-export default FormGenerator;
+export default FormBuilder;
